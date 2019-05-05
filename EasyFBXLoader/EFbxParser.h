@@ -28,7 +28,6 @@ namespace efl
 		static bool CheckFileExists(const std::string& File, const std::string& Extension);
 		static std::string NewExtensionNameByFile(const std::string& File, const std::string& NewExtension);
 		static int FileLength;
-		static int Nb;
 	};
 }
 

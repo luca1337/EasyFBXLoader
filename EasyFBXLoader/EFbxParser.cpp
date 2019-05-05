@@ -6,10 +6,6 @@
 #include <sstream>
 
 int efl::EFbxParser::FileLength = 0;
-int efl::EFbxParser::Nb = 0;
-
-const std::string& FileMeshExtension = ".mesh";
-const std::string& FileAnimExtension = ".anim";
 
 bool efl::EFbxParser::WriteCompressedFile(const std::string& File, int Stack, const std::string& AnimName, std::vector<Bytef>& OutDataCompressed, uLongf& OutDataSize)
 {
@@ -17,32 +13,31 @@ bool efl::EFbxParser::WriteCompressedFile(const std::string& File, int Stack, co
 
 	bool Success = false;
 
-	if (!EFbxParser::CheckFileExists(File, FileMeshExtension)) // if file already exist don't think twice
+	std::string MeshFileName, AnimFileName;
+
+	if (!EFbxParser::CheckFileExists(File, FbxBuffer.FileMeshExtension))
 	{
-		// Parse the file with Vertex, Normals, Bones, Weights etc..
 		Success = EFbxParser::ParseFbxFile(File, FbxBuffer);
 
-		// After parsing the file and after the mesh is built we need to parse an animation by using an fbx..
-
-		if (!Success) {
-			//todo: raise error
+		if (!Success) 
+		{
+			std::cerr << "something went wrong while parsing mesh file.." << std::endl;
 			return false;
 		}
 
-		// write binary file
-		std::string NewFileName;
-		Success = InternalWriteFile(FbxBuffer, File, NewFileName);
+		Success = InternalWriteFile(FbxBuffer, File, MeshFileName);
 
-		if (!Success) {
-			//todo: raise error
+		if (!Success) 
+		{
+			std::cerr << "[Internal Abrupt]: something went wrong while writing '.mesh' file" << std::endl;
 			return false;
 		}
 	}
 
 	WriteCompressedAnimationFile(File, Stack, AnimName, FbxBuffer);
 
-	// try to compress file ".mesh"
-	// CompressFile(NewFileName, FileLength, OutDataCompressed, OutDataSize);
+	/*CompressFile(MeshFileName, FileLength, OutDataCompressed, OutDataSize);
+	CompressFile(MeshFileName, FileLength, OutDataCompressed, OutDataSize);*/
 
 	return Success;
 }
@@ -84,17 +79,17 @@ void efl::EFbxParser::InternalWriteAnimFile(const std::string& File, const std::
 	OutStream.write("Anim", 5);
 
 	// write Numfer of frames 
-	int Nf = InBuffer.Animations[AnimName].size();
+	int Nf = static_cast<int>(InBuffer.Animations[AnimName].size());
 	OutStream.write((char*)&Nf, sizeof(int));
 
 	// write number of influences
-	int Nb = InBuffer.Animations[AnimName][0].size();
+	int Nb = static_cast<int>(InBuffer.Animations[AnimName][0].size());
 	OutStream.write((char*)&Nb, sizeof(int));
 
 	// not sure it's working
 	for (int i = 0; i < Nf; i++)
 	{
-		OutStream.write((char*)InBuffer.Animations[AnimName][i].data(), Nb * sizeof(float) * 16);
+		OutStream.write(reinterpret_cast<char*>(InBuffer.Animations[AnimName][i].data()), Nb * sizeof(float) * 16);
 	}
 
 	OutStream.close();
@@ -109,7 +104,7 @@ bool efl::EFbxParser::InternalWriteFile(FbxBuffer& InBuffer, const std::string& 
 
 	if (!OutStream.is_open())
 	{
-		//todo: raise error
+		std::cerr << "could not open file " << FullName << std::endl;
 		return false;
 	}
 
@@ -125,11 +120,11 @@ bool efl::EFbxParser::InternalWriteFile(FbxBuffer& InBuffer, const std::string& 
 	OutStream.write((char*)&Nb, sizeof(int));
 
 	// Write down all buffers
-	OutStream.write((char*)InBuffer.Vertices.data(), Nv * sizeof(float) * 3);
-	OutStream.write((char*)InBuffer.Normals.data(), Nv * sizeof(float) * 3);
-	OutStream.write((char*)InBuffer.Influences.data(), Nv * sizeof(float) * 4);
-	OutStream.write((char*)InBuffer.Weights.data(), Nv * sizeof(float) * 4);
-	OutStream.write((char*)&InBuffer.BindPoses[0][0][0], Nb * sizeof(float) * 16);
+	OutStream.write(reinterpret_cast<char*>(InBuffer.Vertices.data()), Nv * sizeof(float) * 3);
+	OutStream.write(reinterpret_cast<char*>(InBuffer.Normals.data()), Nv * sizeof(float) * 3);
+	OutStream.write(reinterpret_cast<char*>(InBuffer.Influences.data()), Nv * sizeof(float) * 4);
+	OutStream.write(reinterpret_cast<char*>(InBuffer.Weights.data()), Nv * sizeof(float) * 4);
+	OutStream.write(reinterpret_cast<char*>(&InBuffer.BindPoses[0][0][0]), Nb * sizeof(float) * 16);
 
 	// Write down length of file in order to compress it
 	int Length = OutStream.tellp();
@@ -200,6 +195,70 @@ bool efl::EFbxParser::ParseFbxFile(const std::string& FileName, FbxBuffer& OutFb
 
 	Manager->Destroy();
 	return success;
+}
+
+bool efl::EFbxParser::ParseAnimationFile(const std::string& File, int Stack, const std::string& Name, FbxBuffer& OutFbxBuffer)
+{
+	bool success = false;
+
+	auto Manager = fbxsdk::FbxManager::Create();
+
+	// ignore
+	auto io_settings = fbxsdk::FbxIOSettings::Create(Manager, IOSROOT);
+	Manager->SetIOSettings(io_settings);
+
+	auto importer = fbxsdk::FbxImporter::Create(Manager, "");
+
+	if (importer->Initialize(File.c_str(), -1, Manager->GetIOSettings()))
+	{
+		auto scene = fbxsdk::FbxScene::Create(Manager, "");
+		if (importer->Import(scene))
+		{
+			auto AnimStack = scene->GetSrcObject<fbxsdk::FbxAnimStack>(Stack);
+			scene->SetCurrentAnimationStack(AnimStack);
+
+			auto TakeInfo = scene->GetTakeInfo(AnimStack->GetName());
+			auto FirstFrame = TakeInfo->mLocalTimeSpan.GetStart().GetFrameCount();
+			auto LastFrame = TakeInfo->mLocalTimeSpan.GetStop().GetFrameCount();
+
+			auto Frames = std::vector<std::vector<glm::mat4>>((LastFrame - FirstFrame) + 1);
+
+			IterateBoneForAnimation(scene->GetRootNode(), FirstFrame, LastFrame, Frames);
+
+			OutFbxBuffer.Animations[Name] = Frames;
+		}
+		success = true;
+	}
+	else
+	{
+		success = !success;
+		std::cout << " unable t initialize fbx importer" << std::endl;
+	}
+
+	Manager->Destroy();
+	return success;
+}
+
+void efl::EFbxParser::IterateBoneForAnimation(fbxsdk::FbxNode* node, int FirstFrame, int LastFrame, std::vector<std::vector<glm::mat4>>& OutFrames)
+{
+	auto Skeleton = node->GetSkeleton();
+
+	if (Skeleton)
+	{
+		// store animation frames
+		for (int i = FirstFrame; i <= LastFrame; i++)
+		{
+			FbxTime time;
+			time.SetFrame(i);
+			auto FbxMatrix = node->EvaluateGlobalTransform(time);
+			OutFrames[i].push_back(glm::make_mat4(&FbxMatrix[0][0]));
+		}
+	}
+
+	for (int i = 0; i < node->GetChildCount(); i++)
+	{
+		IterateBoneForAnimation(node->GetChild(i), FirstFrame, LastFrame, OutFrames);
+	}
 }
 
 bool efl::EFbxParser::IterateNode(fbxsdk::FbxNode* node, FbxBuffer& OutFbxBuffer)
@@ -286,30 +345,6 @@ bool efl::EFbxParser::IterateNode(fbxsdk::FbxNode* node, FbxBuffer& OutFbxBuffer
 	return false;
 }
 
-void efl::EFbxParser::IterateBoneForAnimation(fbxsdk::FbxNode* node, int FirstFrame, int LastFrame, std::vector<std::vector<glm::mat4>>& OutFrames)
-{
-	auto Skeleton = node->GetSkeleton();
-
-	if (Skeleton)
-	{
-		std::cout << "[Skeleton] " << node->GetName() << std::endl;
-
-		// store animation frames
-		for (int i = FirstFrame; i <= LastFrame; i++)
-		{
-			FbxTime time;
-			time.SetFrame(i);
-			auto FbxMatrix = node->EvaluateGlobalTransform(time);
-			OutFrames[i].push_back(glm::make_mat4(&FbxMatrix[0][0]));
-		}
-	}
-
-	for (int i = 0; i < node->GetChildCount(); i++)
-	{
-		IterateBoneForAnimation(node->GetChild(i), FirstFrame, LastFrame, OutFrames);
-	}
-}
-
 void efl::EFbxParser::FillBonesAndWeights(int Index, std::map<int, std::vector<std::pair<int, float>>>& BonesMapping, FbxBuffer& OutFbxBuffer)
 {
 	std::array<int, 4> DefaultInfluences = { 0, 0, 0, 0 };
@@ -323,48 +358,6 @@ void efl::EFbxParser::FillBonesAndWeights(int Index, std::map<int, std::vector<s
 
 	OutFbxBuffer.Influences.push_back(DefaultInfluences);
 	OutFbxBuffer.Weights.push_back(DefaultWeights);
-}
-
-bool efl::EFbxParser::ParseAnimationFile(const std::string& File, int Stack, const std::string& Name, FbxBuffer& OutFbxBuffer)
-{
-	bool success = false;
-
-	auto Manager = fbxsdk::FbxManager::Create();
-
-	// ignore
-	auto io_settings = fbxsdk::FbxIOSettings::Create(Manager, IOSROOT);
-	Manager->SetIOSettings(io_settings);
-
-	auto importer = fbxsdk::FbxImporter::Create(Manager, "");
-
-	if (importer->Initialize(File.c_str(), -1, Manager->GetIOSettings()))
-	{
-		auto scene = fbxsdk::FbxScene::Create(Manager, "");
-		if (importer->Import(scene))
-		{
-			auto AnimStack = scene->GetSrcObject<fbxsdk::FbxAnimStack>(Stack);
-			scene->SetCurrentAnimationStack(AnimStack);
-
-			auto TakeInfo = scene->GetTakeInfo(AnimStack->GetName());
-			auto FirstFrame = TakeInfo->mLocalTimeSpan.GetStart().GetFrameCount();
-			auto LastFrame = TakeInfo->mLocalTimeSpan.GetStop().GetFrameCount();
-
-			auto Frames = std::vector<std::vector<glm::mat4>>((LastFrame - FirstFrame) + 1);
-
-			IterateBoneForAnimation(scene->GetRootNode(), FirstFrame, LastFrame, Frames);
-
-			OutFbxBuffer.Animations[Name] = Frames;
-		}
-		success = true;
-	}
-	else
-	{
-		success = !success;
-		std::cout << " unable t initialize fbx importer" << std::endl;
-	}
-
-	Manager->Destroy();
-	return success;
 }
 
 bool efl::EFbxParser::CheckFileExists(const std::string& File, const std::string& Extension)

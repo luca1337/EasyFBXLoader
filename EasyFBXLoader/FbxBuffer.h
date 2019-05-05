@@ -19,10 +19,11 @@ namespace efl
 
 		std::map<std::string, std::vector<std::vector<glm::mat4>>> Animations;
 
-		uint64_t NumOfVertices;
-
 		int Nf;
 		int Nb;
+
+		const std::string& FileMeshExtension = ".mesh";
+		const std::string& FileAnimExtension = ".anim";
 	};
 }
 

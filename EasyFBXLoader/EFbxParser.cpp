@@ -5,13 +5,13 @@
 #include <iostream>
 #include <sstream>
 
-int EFbxParser::FileLength = 0;
-int EFbxParser::Nb = 0;
+int efl::EFbxParser::FileLength = 0;
+int efl::EFbxParser::Nb = 0;
 
 const std::string& FileMeshExtension = ".mesh";
 const std::string& FileAnimExtension = ".anim";
 
-bool EFbxParser::WriteCompressedFile(const std::string& File, int Stack, const std::string& AnimName, std::vector<Bytef>& OutDataCompressed, uLongf& OutDataSize)
+bool efl::EFbxParser::WriteCompressedFile(const std::string& File, int Stack, const std::string& AnimName, std::vector<Bytef>& OutDataCompressed, uLongf& OutDataSize)
 {
 	FbxBuffer FbxBuffer;
 
@@ -47,7 +47,7 @@ bool EFbxParser::WriteCompressedFile(const std::string& File, int Stack, const s
 	return Success;
 }
 
-bool EFbxParser::WriteCompressedAnimationFile(const std::string& Path, int Stack, const std::string& AnimationName, FbxBuffer& InBuffer)
+bool efl::EFbxParser::WriteCompressedAnimationFile(const std::string& Path, int Stack, const std::string& AnimationName, FbxBuffer& InBuffer)
 {
 	const std::string& FileAnimExtension = ".anim";
 
@@ -67,7 +67,7 @@ bool EFbxParser::WriteCompressedAnimationFile(const std::string& Path, int Stack
 	return true;
 }
 
-void EFbxParser::InternalWriteAnimFile(const std::string& File, const std::string& AnimName, FbxBuffer& InBuffer)
+void efl::EFbxParser::InternalWriteAnimFile(const std::string& File, const std::string& AnimName, FbxBuffer& InBuffer)
 {
 	std::string FullName = NewExtensionNameByFile(File, ".anim");
 
@@ -100,7 +100,7 @@ void EFbxParser::InternalWriteAnimFile(const std::string& File, const std::strin
 	OutStream.close();
 }
 
-bool EFbxParser::InternalWriteFile(FbxBuffer& InBuffer, const std::string& File, std::string& OutFileName)
+bool efl::EFbxParser::InternalWriteFile(FbxBuffer& InBuffer, const std::string& File, std::string& OutFileName)
 {
 	std::string FullName = NewExtensionNameByFile(File, ".mesh");
 
@@ -142,7 +142,7 @@ bool EFbxParser::InternalWriteFile(FbxBuffer& InBuffer, const std::string& File,
 	return true;
 }
 
-void EFbxParser::CompressFile(const std::string& File, size_t FileLength, std::vector<Bytef>& OutDataCompressed, uLongf& OutDataSize)
+void efl::EFbxParser::CompressFile(const std::string& File, size_t FileLength, std::vector<Bytef>& OutDataCompressed, uLongf& OutDataSize)
 {
 	std::ifstream InStream;
 
@@ -170,7 +170,7 @@ void EFbxParser::CompressFile(const std::string& File, size_t FileLength, std::v
 	Os.close();
 }
 
-bool EFbxParser::ParseFbxFile(const std::string& FileName, FbxBuffer& OutFbxBuffer)
+bool efl::EFbxParser::ParseFbxFile(const std::string& FileName, FbxBuffer& OutFbxBuffer)
 {
 	bool success = false;
 
@@ -202,7 +202,7 @@ bool EFbxParser::ParseFbxFile(const std::string& FileName, FbxBuffer& OutFbxBuff
 	return success;
 }
 
-bool EFbxParser::IterateNode(fbxsdk::FbxNode* node, FbxBuffer& OutFbxBuffer)
+bool efl::EFbxParser::IterateNode(fbxsdk::FbxNode* node, FbxBuffer& OutFbxBuffer)
 {
 	auto mesh = node->GetMesh();
 
@@ -286,7 +286,7 @@ bool EFbxParser::IterateNode(fbxsdk::FbxNode* node, FbxBuffer& OutFbxBuffer)
 	return false;
 }
 
-void EFbxParser::IterateBoneForAnimation(fbxsdk::FbxNode* node, int FirstFrame, int LastFrame, std::vector<std::vector<glm::mat4>>& OutFrames)
+void efl::EFbxParser::IterateBoneForAnimation(fbxsdk::FbxNode* node, int FirstFrame, int LastFrame, std::vector<std::vector<glm::mat4>>& OutFrames)
 {
 	auto Skeleton = node->GetSkeleton();
 
@@ -310,7 +310,7 @@ void EFbxParser::IterateBoneForAnimation(fbxsdk::FbxNode* node, int FirstFrame, 
 	}
 }
 
-void EFbxParser::FillBonesAndWeights(int Index, std::map<int, std::vector<std::pair<int, float>>>& BonesMapping, FbxBuffer& OutFbxBuffer)
+void efl::EFbxParser::FillBonesAndWeights(int Index, std::map<int, std::vector<std::pair<int, float>>>& BonesMapping, FbxBuffer& OutFbxBuffer)
 {
 	std::array<int, 4> DefaultInfluences = { 0, 0, 0, 0 };
 	std::array<float, 4> DefaultWeights = { 0, 0, 0, 0 };
@@ -325,7 +325,7 @@ void EFbxParser::FillBonesAndWeights(int Index, std::map<int, std::vector<std::p
 	OutFbxBuffer.Weights.push_back(DefaultWeights);
 }
 
-bool EFbxParser::ParseAnimationFile(const std::string& File, int Stack, const std::string& Name, FbxBuffer& OutFbxBuffer)
+bool efl::EFbxParser::ParseAnimationFile(const std::string& File, int Stack, const std::string& Name, FbxBuffer& OutFbxBuffer)
 {
 	bool success = false;
 
@@ -367,7 +367,7 @@ bool EFbxParser::ParseAnimationFile(const std::string& File, int Stack, const st
 	return success;
 }
 
-bool EFbxParser::CheckFileExists(const std::string& File, const std::string& Extension)
+bool efl::EFbxParser::CheckFileExists(const std::string& File, const std::string& Extension)
 {
 	std::string FullName = NewExtensionNameByFile(File, Extension);
 
@@ -385,7 +385,7 @@ bool EFbxParser::CheckFileExists(const std::string& File, const std::string& Ext
 	return false;
 }
 
-std::string EFbxParser::NewExtensionNameByFile(const std::string& File, const std::string& NewExtension = std::string(""))
+std::string efl::EFbxParser::NewExtensionNameByFile(const std::string& File, const std::string& NewExtension = std::string(""))
 {
 	size_t LastIndex = File.find_last_of(".");
 	std::string RawName = File.substr(0, LastIndex);
